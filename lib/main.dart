@@ -1,8 +1,10 @@
+import 'package:animated_responsive_layout/widgets/animated_floating_action_button.dart';
 import 'package:flutter/material.dart';
 
+import 'animations.dart';
 import 'models/data.dart' as data;
-import 'destination.dart';
 import 'models/models.dart';
+import 'widgets/disappearing_bottom_navigation_bar.dart';
 import 'widgets/disappearing_navigation_rail.dart';
 import 'widgets/email_list_view.dart';
 
@@ -34,19 +36,43 @@ class Feed extends StatefulWidget {
   State<Feed> createState() => _FeedState();
 }
 
-class _FeedState extends State<Feed> {
+class _FeedState extends State<Feed> with SingleTickerProviderStateMixin {
   late final _colorScheme = Theme.of(context).colorScheme;
   late final _backgroundColor = Color.alphaBlend(
       _colorScheme.primary.withOpacity(0.14), _colorScheme.surface);
 
+  late final _controller = AnimationController(
+      duration: const Duration(milliseconds: 1000),
+      reverseDuration: const Duration(milliseconds: 1250),
+      value: 0,
+      vsync: this);
+  late final _railAnimation = RailAnimation(parent: _controller);
+  late final _railFabAnimation = RailFabAnimation(parent: _controller);
+  late final _barAnimation = BarAnimation(parent: _controller);
+
   int selectedIndex = 0;
-  bool wideScreen = false;
+  bool controllerInitialized = false;
 
   @override
   void didChangeDependencies() {
     super.didChangeDependencies();
     final double width = MediaQuery.of(context).size.width;
-    wideScreen = width > 600;
+    final AnimationStatus status = _controller.status;
+    if (width > 600) {
+      if (status != AnimationStatus.forward &&
+          status != AnimationStatus.completed) {
+        _controller.forward();
+      }
+    } else {
+      if (status != AnimationStatus.reverse &&
+          status != AnimationStatus.dismissed) {
+        _controller.reverse();
+      }
+    }
+    if (!controllerInitialized) {
+      controllerInitialized = true;
+      _controller.value = width > 600 ? 1 : 0;
+    }
   }
 
   @override
@@ -54,16 +80,17 @@ class _FeedState extends State<Feed> {
     return Scaffold(
       body: Row(
         children: [
-          if (wideScreen)
-            DisappearingNavigationRail(
-              selectedIndex: selectedIndex,
-              backgroundColor: _backgroundColor,
-              onDestinationSelected: (index) {
-                setState(() {
-                  selectedIndex = index;
-                });
-              },
-            ),
+          DisappearingNavigationRail(
+            selectedIndex: selectedIndex,
+            backgroundColor: _backgroundColor,
+            railAnimation: _railAnimation,
+            railFabAnimation: _railFabAnimation,
+            onDestinationSelected: (index) {
+              setState(() {
+                selectedIndex = index;
+              });
+            },
+          ),
           Expanded(
             child: Container(
               color: _backgroundColor,
@@ -80,32 +107,20 @@ class _FeedState extends State<Feed> {
           ),
         ],
       ),
-      floatingActionButton: wideScreen
-          ? null
-          : FloatingActionButton(
-              backgroundColor: _colorScheme.tertiaryContainer,
-              foregroundColor: _colorScheme.onTertiaryContainer,
-              onPressed: () {},
-              child: const Icon(Icons.add),
-            ),
-      bottomNavigationBar: wideScreen
-          ? null
-          : NavigationBar(
-              elevation: 0,
-              backgroundColor: Colors.white,
-              destinations: destinations.map<NavigationDestination>((d) {
-                return NavigationDestination(
-                  icon: Icon(d.icon),
-                  label: d.label,
-                );
-              }).toList(),
-              selectedIndex: selectedIndex,
-              onDestinationSelected: (index) {
-                setState(() {
-                  selectedIndex = index;
-                });
-              },
-            ),
+      floatingActionButton: AnimatedFloatingActionButton(
+        animation: _barAnimation,
+        onPressed: () {},
+        child: const Icon(Icons.add),
+      ),
+      bottomNavigationBar: DisappearingBottomNavigationBar(
+        barAnimation: _barAnimation,
+        selectedIndex: selectedIndex,
+        onDestinationSelected: (index) {
+          setState(() {
+            selectedIndex = index;
+          });
+        },
+      ),
     );
   }
 }
